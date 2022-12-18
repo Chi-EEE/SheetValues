@@ -12,7 +12,7 @@ return {
 		return tonumber(v)
 	end,
 	["boolean"] = function(v)
-		return string.lower(v) == "true" and true or false
+		return string.lower(v) == "true"
 	end,
 	["array"] = function(v)
 		return string.split(v, ",")

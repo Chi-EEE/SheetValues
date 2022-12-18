@@ -164,67 +164,6 @@ local MessagingService = game:GetService("MessagingService")
 local SHA1 = require(script.SHA1)
 local TypeTransformer = require(script.TypeTransformer)
 
-local function ConvertTyped(Input)
-	if type(Input) ~= "string" then
-		-- Already typed
-		return Input
-	end
-
-	local lowerInput = string.lower(Input)
-
-	-- Check if explicitly string
-	if string.match(lowerInput, "^[\"']") and string.match(lowerInput, "[\"']$") then
-		return string.sub(Input, 2, #Input - 1)
-	end
-
-	-- Check if boolean
-	if lowerInput == "true" or lowerInput == "false" then
-		return lowerInput == "true"
-	end
-
-	-- Check if number
-	local n = tonumber(Input)
-	if tostring(n) == Input then
-		return n
-	end
-
-	-- Check if table
-	if string.match(lowerInput, "^{") and string.match(lowerInput, "}$") then
-		local output = {}
-
-		-- TODO: Instead of splitting by commas, parse it yourself so that Vector3(1,1,1) doesn't cause 2 incorrect splits
-		local keyvalues = string.split(string.sub(Input, 2, #Input - 1), ",")
-		for i, keyvalue in keyvalues do
-			-- Remove leading whitespace
-			keyvalue = string.gsub(keyvalue, "^ ", "")
-
-			-- Check if dictionary
-			local key, value = string.match(keyvalue, "(%w+)%s*=%s*(.+)")
-			if key and value then
-				output[key] = ConvertTyped(value)
-				continue
-			end
-
-			-- Default to array
-			output[i] = ConvertTyped(keyvalue)
-		end
-
-		return output
-	end
-
-	-- Check if explicitly typed (ex: "Vector3.new(1,1,1)", "UDim2.new(0,100,0,80)")
-	local Type, Value = string.match(Input, "^(%w+)%.?[new]*%((.-)%)$")
-	if Type and Value then
-		local Transformer = TypeTransformer[string.lower(Type)]
-		if Transformer then
-			return Transformer(Value)
-		end
-	end
-
-	-- Fallback to string
-	return Input
-end
-
 local function DictEquals(a, b)
 	if type(a) ~= type(b) then
 		return false
@@ -298,27 +237,46 @@ function SheetValues.new(SpreadId: string, SheetId: string?)
 
 		local isChanged = false
 
-		for Row, RowValue in sheet.table.rows do
-			-- Parse the typed values into dictionary based on the header row keys
+		local TransformTable = table.create(#sheet.table.rows[1].c)
+
+		-- Go through first row of table
+		for i, Comp in sheet.table.rows[1].c do
+			local key = sheet.table.cols[i].label
+			if not key or key == "" then
+				continue
+			end
+
+			TransformTable[i] = TypeTransformer[Comp.v]
+		end
+
+		for Row = 2, #sheet.table.rows do
+			local RowValue = sheet.table.rows[Row]
 			local Value = table.create(#RowValue.c)
-			for i, Comp in RowValue.c do
+			
+			-- First column of csv will be the Key to the Values
+			local FirstKey = sheet.table.cols[1].label
+			local Comp = RowValue.c[1]
+			Value[FirstKey] = TransformTable[1](if Comp.v ~= nil then Comp.v else "")
+
+			-- Parse the remaining typed values into dictionary based on the header row keys
+			for i = 2, #RowValue.c do
 				local key = sheet.table.cols[i].label
+				Comp = RowValue.c[i]
 				if not key or key == "" then
 					continue
 				end
 
-				Value[key] = ConvertTyped(if Comp.v ~= nil then Comp.v else "")
+				Value[key] = TransformTable[i](if Comp.v ~= nil then Comp.v else "")
 			end
 
-			local Name = Value.Name or Value.name or string.format("%d", Row) -- Index by name, or by row if no names exist
-			local OldValue = self.Values[Name]
+			local OldValue = self.Values[FirstKey]
 
 			if not DictEquals(OldValue, Value) then
 				isChanged = true
 
-				self.Values[Name] = Value
+				self.Values[FirstKey] = Value
 
-				local ValueChangeEvent = self._ValueChangeEvents[Name]
+				local ValueChangeEvent = self._ValueChangeEvents[FirstKey]
 				if ValueChangeEvent then
 					ValueChangeEvent:Fire(Value, OldValue)
 				end
