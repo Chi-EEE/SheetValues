@@ -7,7 +7,7 @@ ___
 ## CSV Example:
 | Name  | TID | Health | Items |
 | ------------- | ------------- | ------------- | ------------- |
-| string  | number | number | array |
+| string  | string | number | array |
 | Chi  | TID_PERSON_CHI  | 100 | Keyboard,Mouse |
 ___
 ## Notes:
