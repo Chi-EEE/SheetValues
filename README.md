@@ -13,3 +13,4 @@ ___
 ## Notes:
 * First Column will always be the Key to your Values dictionary
 * Make sure to follow the CSV example
+* Click the empty cell beside the 'A' column and above the '1' row and change the 'Format > Number > Plain Text'
